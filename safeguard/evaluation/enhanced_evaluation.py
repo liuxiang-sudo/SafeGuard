@@ -7,9 +7,9 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.pipeline import make_pipeline
-from multiguard.data.validation import validate_training_data
-from multiguard.detection.ml_detector import MLDetector
-from multiguard.paths import PROCESSED_DIR, REPORTS_DIR, ensure_runtime_dirs
+from safeguard.data.validation import validate_training_data
+from safeguard.detection.ml_detector import MLDetector
+from safeguard.paths import PROCESSED_DIR, REPORTS_DIR, ensure_runtime_dirs
 import matplotlib.pyplot as plt
 import seaborn as sns
 

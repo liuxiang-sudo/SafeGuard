@@ -1,5 +1,5 @@
 import os
-from multiguard.paths import DATASETS_DIR, PROCESSED_DIR, ensure_runtime_dirs
+from safeguard.paths import DATASETS_DIR, PROCESSED_DIR, ensure_runtime_dirs
 import json
 import pandas as pd
 import numpy as np

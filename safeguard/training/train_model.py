@@ -6,9 +6,9 @@ import os
 from pathlib import Path
 import random
 
-from multiguard.data.validation import validate_training_data
-from multiguard.detection.ml_detector import ml_detector
-from multiguard.paths import TRAINING_SAMPLES_DIR, PROCESSED_DIR, ensure_runtime_dirs
+from safeguard.data.validation import validate_training_data
+from safeguard.detection.ml_detector import ml_detector
+from safeguard.paths import TRAINING_SAMPLES_DIR, PROCESSED_DIR, ensure_runtime_dirs
 
 def generate_synthetic_data(num_samples=1000):
     """

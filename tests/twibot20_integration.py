@@ -1,7 +1,7 @@
 import json
 import os
-from multiguard.detection.ml_detector import MLDetector
-from multiguard.paths import PROCESSED_DIR, DATASETS_DIR, EXAMPLES_DIR, ensure_runtime_dirs
+from safeguard.detection.ml_detector import MLDetector
+from safeguard.paths import PROCESSED_DIR, DATASETS_DIR, EXAMPLES_DIR, ensure_runtime_dirs
 
 def test_twibot20_integration():
     """

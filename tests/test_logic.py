@@ -10,12 +10,12 @@ from unittest.mock import patch
 
 import numpy as np
 
-from multiguard.data.validation import validate_training_data
-from multiguard.detection.ml_detector import MLDetector
-from multiguard.detection import ml_detector as detector_module
-from multiguard.detection import platform_detector
-from multiguard.training import train_model as training
-from multiguard.web.app import app
+from safeguard.data.validation import validate_training_data
+from safeguard.detection.ml_detector import MLDetector
+from safeguard.detection import ml_detector as detector_module
+from safeguard.detection import platform_detector
+from safeguard.training import train_model as training
+from safeguard.web.app import app
 
 
 def dataset():
@@ -178,7 +178,7 @@ class TrainingTests(TemporaryDetectorTest):
 class EvaluationTests(TemporaryDetectorTest):
     def test_small_balanced_dataset_can_be_evaluated_without_fixed_five_folds(self):
         try:
-            from multiguard.evaluation import enhanced_evaluation as evaluation
+            from safeguard.evaluation import enhanced_evaluation as evaluation
         except ImportError:
             self.skipTest('Optional evaluation dependencies are not installed')
         samples = self.samples[:3] + self.samples[-3:]
@@ -202,9 +202,9 @@ class WebTests(TemporaryDetectorTest):
                           UPLOAD_FOLDER=str(self.directory / 'uploads'))
         self.client = app.test_client()
         for target, value in (
-                ('multiguard.training.train_model.ml_detector', self.detector),
-                ('multiguard.detection.platform_detector.ml_detector', self.detector),
-                ('multiguard.training.train_model.TRAINING_SAMPLES_DIR', self.directory / 'samples')):
+                ('safeguard.training.train_model.ml_detector', self.detector),
+                ('safeguard.detection.platform_detector.ml_detector', self.detector),
+                ('safeguard.training.train_model.TRAINING_SAMPLES_DIR', self.directory / 'samples')):
             patcher = patch(target, value)
             patcher.start()
             self.addCleanup(patcher.stop)

@@ -7,7 +7,7 @@
 不提供文本模型也可以运行。程序使用规则降级分析，或使用合成 / 自备数据训练随机森林：
 
 ```bash
-python -m multiguard.training.train_model --synth 1000
+python -m safeguard.training.train_model --synth 1000
 ```
 
 训练会原子写入 models/detector.joblib，包含分类器、缩放器、特征顺序和文本模型使用信息。Web 上传训练完成后，当前进程中的检测器立即使用新模型。多个独立服务进程仍需分别重载或重启。

@@ -43,7 +43,7 @@ python app.py
 
 ```bash
 # 使用合成数据训练模型
-python -m multiguard.training.train_model --synth 1000
+python -m safeguard.training.train_model --synth 1000
 
 # 运行目录迁移回归测试
 python -m unittest discover -s tests -v

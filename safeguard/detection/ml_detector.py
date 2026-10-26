@@ -14,8 +14,8 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.exceptions import InconsistentVersionWarning
 from sklearn.preprocessing import StandardScaler
 
-from multiguard.data.validation import normalize_user_data, validate_training_data
-from multiguard.paths import MODELS_DIR
+from safeguard.data.validation import normalize_user_data, validate_training_data
+from safeguard.paths import MODELS_DIR
 
 logger = logging.getLogger(__name__)
 

@@ -4,7 +4,7 @@ import datetime
 import json
 import os
 from .ml_detector import ml_detector
-from multiguard.data.validation import normalize_user_data
+from safeguard.data.validation import normalize_user_data
 
 
 def analyze_platform_user(user_data):

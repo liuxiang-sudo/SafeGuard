@@ -3,9 +3,9 @@ import os
 import secrets
 from uuid import uuid4
 from werkzeug.utils import secure_filename
-from multiguard.detection.platform_detector import analyze_platform_user
-from multiguard.training.train_model import train_model_from_file
-from multiguard.paths import DATASETS_DIR, WEB_DIR, ensure_runtime_dirs
+from safeguard.detection.platform_detector import analyze_platform_user
+from safeguard.training.train_model import train_model_from_file
+from safeguard.paths import DATASETS_DIR, WEB_DIR, ensure_runtime_dirs
 
 app = Flask(__name__, template_folder=str(WEB_DIR / 'templates'),
             static_folder=str(WEB_DIR / 'static'))

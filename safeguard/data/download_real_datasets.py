@@ -1,5 +1,5 @@
 import os
-from multiguard.paths import DATASETS_DIR
+from safeguard.paths import DATASETS_DIR
 import requests
 import pandas as pd
 import json

@@ -1,5 +1,5 @@
 import json
-from multiguard.paths import TWIBOT_DIR, PROCESSED_DIR, ensure_runtime_dirs
+from safeguard.paths import TWIBOT_DIR, PROCESSED_DIR, ensure_runtime_dirs
 import random
 import os
 from datetime import datetime, timedelta
@@ -247,7 +247,7 @@ def create_enhanced_dataset():
         twibot_data = json.load(f)
     
     # 生成额外的合成数据以平衡数据集
-    from multiguard.training.train_model import generate_synthetic_data
+    from safeguard.training.train_model import generate_synthetic_data
     
     # 生成合成数据
     synthetic_data, synthetic_labels = generate_synthetic_data(1000)
@@ -284,5 +284,5 @@ if __name__ == "__main__":
     
     print("\n数据集转换完成！")
     print(f"你可以使用以下命令训练模型:")
-    print(f"python -m multiguard.training.train_model --data {enhanced_file}")
+    print(f"python -m safeguard.training.train_model --data {enhanced_file}")
     print(f"或者在Web应用中上传 {enhanced_file} 文件进行训练") 

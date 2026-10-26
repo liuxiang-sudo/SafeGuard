@@ -16,7 +16,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from multiguard.paths import PROJECT_ROOT, WEB_DIR
+from safeguard.paths import PROJECT_ROOT, WEB_DIR
 
 
 class StructureTests(unittest.TestCase):
@@ -26,7 +26,7 @@ class StructureTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             result = subprocess.run(
                 [sys.executable, '-c',
-                 'from multiguard.paths import PROJECT_ROOT, WEB_DIR, MODELS_DIR; '
+                 'from safeguard.paths import PROJECT_ROOT, WEB_DIR, MODELS_DIR; '
                  'assert (WEB_DIR / "templates/index.html").is_file(); '
                  'assert MODELS_DIR == PROJECT_ROOT / "models"; '
                  'print(PROJECT_ROOT)'],
@@ -37,7 +37,7 @@ class StructureTests(unittest.TestCase):
 
     def test_python_syntax_and_internal_import_targets(self):
         sources = [PROJECT_ROOT / 'app.py']
-        for directory in ('multiguard', 'examples', 'tests'):
+        for directory in ('safeguard', 'examples', 'tests'):
             sources.extend((PROJECT_ROOT / directory).rglob('*.py'))
         old_modules = {'ml_detector', 'platform_detector', 'detector',
                        'train_model', 'data_processing'}
@@ -54,7 +54,7 @@ class StructureTests(unittest.TestCase):
                     else:
                         module = node.module or ''
                         self.assertNotIn(module, old_modules)
-                    if module.startswith('multiguard.'):
+                    if module.startswith('safeguard.'):
                         path = PROJECT_ROOT.joinpath(*module.split('.'))
                         self.assertTrue(path.with_suffix('.py').is_file()
                                         or (path / '__init__.py').is_file(), module)
@@ -86,7 +86,7 @@ class StructureTests(unittest.TestCase):
                 processed.mkdir()
                 (raw / 'TwiBot-20_sample.json').write_text(
                     json.dumps(fixture), encoding='utf-8')
-                module = importlib.import_module(f'multiguard.data.{module_name}')
+                module = importlib.import_module(f'safeguard.data.{module_name}')
                 with patch.object(module, 'TWIBOT_DIR', raw), \
                      patch.object(module, 'PROCESSED_DIR', processed), \
                      patch.object(module, 'ensure_runtime_dirs'), \
