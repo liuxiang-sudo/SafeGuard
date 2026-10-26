@@ -5,6 +5,6 @@
 - processed/：转换与增强结果、预处理输出、训练导出的 real_dataset.json。
 - training_samples/：上传训练时生成的样本摘要。
 
-实际数据默认不纳入 Git。小型示例也仅在本地 examples/data/ 中保留。网页上传接受 samples（或 data）与 labels 字段；命令行训练的 --data 使用由 data、is_bot 组成的记录列表。
+实际数据默认不纳入 Git。小型示例也仅在本地 examples/data/ 中保留。网页与命令行训练共用数据加载器，接受 samples（或 data）与 labels 字段，也兼容由 data、is_bot 组成的旧记录列表。
 
 现有 TwiBot 转换逻辑包含规则推断标签和模拟行为特征，其输出不能直接视为真实行为观测或原数据集标签。

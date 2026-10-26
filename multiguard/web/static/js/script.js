@@ -28,7 +28,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Set hidden form field value
                 const platform = this.getAttribute('data-platform');
-                platformInput.value = platform;
+                if (platformInput) platformInput.value = platform;
                 
                 // Hide all platform specific fields
                 platformFields.forEach(field => field.classList.remove('active'));
@@ -46,10 +46,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Add visual effects
                 const img = this.querySelector('img');
-                img.classList.add('bounce');
-                setTimeout(() => {
-                    img.classList.remove('bounce');
-                }, 500);
+                if (img) {
+                    img.classList.add('bounce');
+                    setTimeout(() => img.classList.remove('bounce'), 500);
+                }
             });
         });
     }
@@ -90,24 +90,36 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // Set navigation count
-    const navCount = sessionStorage.getItem('navCount') || 0;
-    sessionStorage.setItem('navCount', parseInt(navCount) + 1);
-    navigationInput.value = navCount;
+    if (navigationInput) {
+        try {
+            const navCount = Number.parseInt(sessionStorage.getItem('navCount'), 10) || 0;
+            sessionStorage.setItem('navCount', navCount + 1);
+            navigationInput.value = navCount;
+        } catch (error) {
+            navigationInput.value = '0';
+        }
+    }
     
     // Submit event
     if (form) {
         form.addEventListener('submit', function(event) {
             // Calculate time spent on form
             const timeSpent = (Date.now() - startTime) / 1000; // Convert to seconds
-            timeInput.value = timeSpent.toFixed(2);
+            if (timeInput) timeInput.value = timeSpent.toFixed(2);
             
             // Record typing pattern
-            typingPatternInput.value = keystrokeIntervals.join(',');
+            if (typingPatternInput) typingPatternInput.value = keystrokeIntervals.join(',');
             
             // Set screen size and user agent
-            document.getElementById('screen_size').value = `${window.innerWidth}x${window.innerHeight}`;
-            document.getElementById('user_agent').value = navigator.userAgent;
-            document.getElementById('referrer').value = document.referrer;
+            const fields = {
+                screen_size: `${window.innerWidth}x${window.innerHeight}`,
+                user_agent: navigator.userAgent,
+                referrer: document.referrer
+            };
+            Object.entries(fields).forEach(([id, value]) => {
+                const input = document.getElementById(id);
+                if (input) input.value = value;
+            });
         });
     }
     
@@ -128,7 +140,7 @@ document.addEventListener('DOMContentLoaded', function() {
         anchor.addEventListener('click', function (e) {
             e.preventDefault();
             
-            const target = document.querySelector(this.getAttribute('href'));
+            const target = document.getElementById(this.getAttribute('href').slice(1));
             if (target) {
                 target.scrollIntoView({
                     behavior: 'smooth'
@@ -139,10 +151,12 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Click recording
     let clicks = [];
+    const clickInput = document.getElementById('click_pattern');
     document.addEventListener('click', function(e) {
+        if (!clickInput) return;
         clicks.push(`${e.clientX},${e.clientY},${Date.now()}`);
         if (clicks.length > 20) clicks.shift();
-        document.getElementById('click_pattern').value = clicks.join('|');
+        clickInput.value = clicks.join('|');
     });
     
     // Hide loading animation after page load completes

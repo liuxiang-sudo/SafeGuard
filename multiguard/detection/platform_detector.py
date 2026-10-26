@@ -4,6 +4,7 @@ import datetime
 import json
 import os
 from .ml_detector import ml_detector
+from multiguard.data.validation import normalize_user_data
 
 
 def analyze_platform_user(user_data):
@@ -16,6 +17,7 @@ def analyze_platform_user(user_data):
     Returns:
         dict: 包含分析结果的字典
     """
+    user_data = normalize_user_data(user_data)
     platform = user_data.get('platform', 'general')
 
     # 尝试使用ML检测
@@ -140,6 +142,9 @@ def analyze_account_age(register_date):
         reg_date = datetime.datetime.strptime(register_date, "%Y-%m-%d").date()
         today = datetime.datetime.now().date()
         account_age = (today - reg_date).days
+
+        if account_age < 0:
+            return 0.5, ['注册日期晚于当前日期，无法分析账号年龄']
 
         if account_age < 7:
             evidence.append(f"账号注册时间仅{account_age}天，非常新的账号通常与机器人关联")
@@ -315,8 +320,8 @@ def analyze_general_user(user_data):
         evidence.append(f"使用设备屏幕分辨率: {screen_size}")
         # 移动设备更可能是人类用户
         if 'x' in screen_size:
-            width = int(screen_size.split('x')[0])
-            if width < 900:
+            dimensions = re.fullmatch(r'([1-9]\d*)x([1-9]\d*)', screen_size)
+            if dimensions and int(dimensions.group(1)) < 900:
                 evidence.append("检测到移动设备屏幕尺寸，更常见于人类用户")
                 scores.append(0.7)
 

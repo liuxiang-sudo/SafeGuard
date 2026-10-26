@@ -1,19 +1,19 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
-import numpy as np
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, abort
 import os
-import json
+import secrets
+from uuid import uuid4
 from werkzeug.utils import secure_filename
-import pandas as pd
 from multiguard.detection.platform_detector import analyze_platform_user
 from multiguard.training.train_model import train_model_from_file
 from multiguard.paths import DATASETS_DIR, WEB_DIR, ensure_runtime_dirs
 
 app = Flask(__name__, template_folder=str(WEB_DIR / 'templates'),
             static_folder=str(WEB_DIR / 'static'))
-app.config['SECRET_KEY'] = 'human-bot-detector-secret-key'
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or secrets.token_hex(32)
 app.config['UPLOAD_FOLDER'] = str(DATASETS_DIR)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload size
 ALLOWED_EXTENSIONS = {'json', 'csv'}
+PLATFORMS = {'general', 'weibo', 'douyin', 'tieba'}
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -30,7 +30,9 @@ def index():
 @app.route('/analyze', methods=['POST'])
 def analyze():
     # 获取平台类型
-    platform = request.form.get('platform')
+    platform = request.form.get('platform', 'general')
+    if platform not in PLATFORMS:
+        abort(400, description='不支持的平台')
     
     # 基础数据（所有平台共有）
     user_data = {
@@ -104,34 +106,32 @@ def upload_dataset():
             return redirect(request.url)
         
         # 获取平台类型
-        platform = request.form.get('platform')
+        platform = request.form.get('platform', 'general')
+        if platform not in PLATFORMS:
+            flash('不支持的平台', 'error')
+            return redirect(request.url)
         
         # 验证文件格式
         if file and allowed_file(file.filename):
             # 保存文件
-            filename = secure_filename(file.filename)
-            dataset_name = request.form.get('dataset_name', '')
-            
-            # 如果用户提供了数据集名称，使用它来命名文件
-            if dataset_name:
-                file_ext = filename.rsplit('.', 1)[1].lower()
-                filename = f"{secure_filename(dataset_name)}_{platform}.{file_ext}"
-            else:
-                # 添加平台标识
-                name_parts = filename.rsplit('.', 1)
-                filename = f"{name_parts[0]}_{platform}.{name_parts[1]}"
+            # Preserve the validated extension even for non-ASCII filenames.
+            file_ext = file.filename.rsplit('.', 1)[1].lower()
+            dataset_name = request.form.get('dataset_name', '') or file.filename.rsplit('.', 1)[0]
+            safe_name = secure_filename(dataset_name)[:80] or 'dataset'
+            filename = f"{safe_name}_{platform}_{uuid4().hex}.{file_ext}"
                 
             file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            file.save(file_path)
             
             # 检查是否需要与默认数据集混合
             mix_with_default = request.form.get('mix_with_default') == 'on'
             
             # 尝试训练模型
             try:
+                os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+                file.save(file_path)
                 # 调用训练函数，传递平台信息
                 train_model_from_file(file_path, mix_with_default)
-                flash(f'{platform} 平台数据集 {filename} 上传成功并已训练模型！', 'success')
+                flash(f'数据集 {filename} 已训练共享模型，后续检测将使用更新后的模型。', 'success')
             except Exception as e:
                 flash(f'模型训练失败: {str(e)}', 'error')
                 
@@ -144,6 +144,8 @@ def upload_dataset():
 
 @app.route('/download_template/<platform>')
 def download_template(platform):
+    if platform not in PLATFORMS:
+        abort(404)
     # 根据不同平台提供不同的模板数据结构
     
     if platform == 'weibo':

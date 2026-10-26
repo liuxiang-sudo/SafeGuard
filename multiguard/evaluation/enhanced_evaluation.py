@@ -6,6 +6,8 @@ from sklearn.metrics import (
     classification_report, confusion_matrix, roc_auc_score, roc_curve
 )
 from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.pipeline import make_pipeline
+from multiguard.data.validation import validate_training_data
 from multiguard.detection.ml_detector import MLDetector
 from multiguard.paths import PROCESSED_DIR, REPORTS_DIR, ensure_runtime_dirs
 import matplotlib.pyplot as plt
@@ -17,9 +19,9 @@ def load_twibot20_data():
         data = json.load(f)
     return data['samples'], data['labels']
 
-def extract_features_for_evaluation(data):
+def extract_features_for_evaluation(data, detector=None):
     """Extract features for evaluation"""
-    detector = MLDetector()
+    detector = detector if detector is not None else MLDetector()
     X = []
     for user_data in data:
         features = detector.extract_features(user_data)
@@ -33,12 +35,16 @@ def comprehensive_evaluation():
     
     # Load data
     samples, labels = load_twibot20_data()
+    samples, labels = validate_training_data(samples, labels)
+    if min(labels.count(0), labels.count(1)) < 3:
+        raise ValueError('评估至少需要每类 3 个样本，以划分测试集和交叉验证集')
     print(f"Dataset size: {len(samples)} samples")
     print(f"Label distribution: Human {labels.count(0)}, Bot {labels.count(1)}")
     
     # Extract features
     print("\nExtracting features...")
-    X = extract_features_for_evaluation(samples)
+    detector = MLDetector()
+    X = extract_features_for_evaluation(samples, detector)
     y = np.array(labels)
     
     # Split train/test
@@ -51,7 +57,6 @@ def comprehensive_evaluation():
     
     # Train model
     print("\nTraining model...")
-    detector = MLDetector()
     
     # Standardize features
     from sklearn.preprocessing import StandardScaler
@@ -72,9 +77,9 @@ def comprehensive_evaluation():
     print("\n=== Detailed Evaluation Metrics ===")
     
     accuracy = accuracy_score(y_test, y_pred)
-    precision = precision_score(y_test, y_pred, average='binary')
-    recall = recall_score(y_test, y_pred, average='binary')
-    f1 = f1_score(y_test, y_pred, average='binary')
+    precision = precision_score(y_test, y_pred, average='binary', zero_division=0)
+    recall = recall_score(y_test, y_pred, average='binary', zero_division=0)
+    f1 = f1_score(y_test, y_pred, average='binary', zero_division=0)
     
     print(f"Accuracy: {accuracy:.4f} ({accuracy:.2%})")
     print(f"Precision: {precision:.4f} ({precision:.2%})")
@@ -90,16 +95,19 @@ def comprehensive_evaluation():
     
     # Cross-validation
     print("\n=== Cross-validation Results ===")
-    cv_scores = cross_val_score(rf_classifier, X_train_scaled, y_train, cv=5)
-    print(f"5-fold CV Accuracy: {cv_scores.mean():.4f} (+/- {cv_scores.std() * 2:.4f})")
+    cv_folds = min(5, int(np.bincount(y_train).min()))
+    # Fit preprocessing within each fold, instead of leaking validation statistics.
+    pipeline = make_pipeline(StandardScaler(), RandomForestClassifier(n_estimators=100, random_state=42))
+    cv_scores = cross_val_score(pipeline, X_train, y_train, cv=cv_folds)
+    print(f"{cv_folds}-fold CV Accuracy: {cv_scores.mean():.4f} (+/- {cv_scores.std() * 2:.4f})")
     
     # Classification report
     print("\n=== Classification Report ===")
-    print(classification_report(y_test, y_pred, target_names=['Human', 'Bot']))
+    print(classification_report(y_test, y_pred, labels=[0, 1], target_names=['Human', 'Bot'], zero_division=0))
     
     # Confusion matrix
     print("\n=== Confusion Matrix ===")
-    cm = confusion_matrix(y_test, y_pred)
+    cm = confusion_matrix(y_test, y_pred, labels=[0, 1])
     print("Confusion Matrix:")
     print("         Predicted")
     print("        Human  Bot")

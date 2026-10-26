@@ -1,22 +1,35 @@
+"""Feature extraction and a reusable detector with offline rule fallback."""
+import logging
+import math
 import os
-from multiguard.paths import MODELS_DIR
+from pathlib import Path
 import re
-import json
-import numpy as np
-import nltk
-import torch
-import random
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import train_test_split
-import pickle
-import joblib
+import tempfile
 import warnings
-warnings.filterwarnings('ignore')
-from transformers import AutoTokenizer, AutoModel
-from sklearn.feature_extraction.text import TfidfVectorizer
-import importlib.util
-from nltk.tokenize import word_tokenize, sent_tokenize
+from threading import RLock
+
+import joblib
+import numpy as np
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.exceptions import InconsistentVersionWarning
+from sklearn.preprocessing import StandardScaler
+
+from multiguard.data.validation import normalize_user_data, validate_training_data
+from multiguard.paths import MODELS_DIR
+
+logger = logging.getLogger(__name__)
+
+
+def _load_saved_model(path):
+    # Version-mismatched pickle estimators can load but fail later at prediction.
+    with warnings.catch_warnings():
+        warnings.simplefilter('error', InconsistentVersionWarning)
+        return joblib.load(path)
+
+try:
+    from nltk.tokenize import word_tokenize, sent_tokenize
+except ImportError:
+    word_tokenize = sent_tokenize = None
 
 # 自定义分词和句子切分函数，避免使用NLTK依赖
 def custom_word_tokenize(text):
@@ -33,104 +46,73 @@ def custom_sent_tokenize(text):
     sentences = re.split(r'(?<=[.!?])\s+', text)
     return [s.strip() for s in sentences if s.strip()]
 
-# 添加NLTK资源下载函数
-def ensure_nltk_resources():
-    """确保所有必要的NLTK资源都被下载并正确配置"""
-    resources = ['punkt', 'wordnet']
-    
-    for resource in resources:
-        try:
-            # 检查资源是否已经下载
-            nltk.data.find(f'tokenizers/{resource}')
-            print(f"NLTK资源 '{resource}' 已存在")
-        except LookupError:
-            # 如果没有下载，则下载
-            print(f"下载NLTK资源 '{resource}'...")
-            nltk.download(resource, quiet=True)
-    
-    print("完成NLTK资源设置")
-
-    # 在模块加载时确保资源已下载
-    try:
-        ensure_nltk_resources()
-    except Exception as e:
-        print(f"警告: NLTK资源初始化失败: {str(e)}. 将使用自定义分词方法。")
-
 class MLDetector:
-    def __init__(self):
-        """Initialize the machine learning detector with necessary models."""
-        self.models_path = str(MODELS_DIR)
-        
-        # Initialize transformer model for text analysis
-        self.transformer_model_name = os.path.join(self.models_path, "distilbert-base-uncased")
+    def __init__(self, models_path=None, use_transformer=True):
+        self.models_path = str(models_path if models_path is not None else MODELS_DIR)
+        self.transformer_model_name = str(Path(self.models_path) / "distilbert-base-uncased")
         self.tokenizer = None
         self.transformer_model = None
-        
-        # Initialize classifiers
-        self.rf_classifier = None
-        self.tfidf_vectorizer = None
-        self.scaler = None
-        
-        # Load pre-trained models if they exist
+        self._transformer_attempted = False
+        self._allow_transformer = use_transformer
+        self._requires_transformer = False
+        self._lock = RLock()
+        self.feature_names = None
+        self.rf_classifier = RandomForestClassifier(n_estimators=100, random_state=42)
+        self.scaler = StandardScaler()
         self._load_models()
-        
+
     def _load_models(self):
-        """Load pre-trained models if they exist, otherwise initialize them."""
-        # Create models directory if it doesn't exist
-        if not os.path.exists(self.models_path):
-            os.makedirs(self.models_path)
-        
-        # Load transformer model
+        """Load one coherent model bundle; keep support for legacy local models."""
+        bundle_path = Path(self.models_path) / 'detector.joblib'
         try:
-            self.tokenizer = AutoTokenizer.from_pretrained(self.transformer_model_name)
-            self.transformer_model = AutoModel.from_pretrained(self.transformer_model_name)
-        except:
-            print("Warning: Could not load transformer model. Will use when needed.")
-        
-        # Load random forest classifier if it exists
+            if bundle_path.is_file():
+                bundle = _load_saved_model(bundle_path)
+                classifier, scaler = bundle['classifier'], bundle['scaler']
+                self.feature_names = bundle['feature_names']
+                self._requires_transformer = bundle['uses_transformer']
+                self._allow_transformer = self._allow_transformer and bundle['uses_transformer']
+            else:
+                classifier_path = Path(self.models_path) / 'rf_classifier.pkl'
+                scaler_path = Path(self.models_path) / 'scaler.pkl'
+                if not (classifier_path.is_file() and scaler_path.is_file()):
+                    return
+                classifier, scaler = _load_saved_model(classifier_path), _load_saved_model(scaler_path)
+            if set(classifier.classes_) != {0, 1}:
+                raise ValueError('Saved classifier must contain both classes')
+            self.rf_classifier, self.scaler = classifier, scaler
+        except Exception as exc:
+            self.feature_names = None
+            self._requires_transformer = False
+            logger.warning('Cannot load local classifier; using rules: %s', exc)
+
+    def _load_transformer(self):
+        """Attempt the optional local model once; never download on a request."""
+        if self._transformer_attempted or not self._allow_transformer:
+            return
+        self._transformer_attempted = True
+        if not (Path(self.transformer_model_name) / 'config.json').is_file():
+            return
         try:
-            self.rf_classifier = joblib.load(os.path.join(self.models_path, 'rf_classifier.pkl'))
-            self.tfidf_vectorizer = joblib.load(os.path.join(self.models_path, 'tfidf_vectorizer.pkl'))
-            self.scaler = joblib.load(os.path.join(self.models_path, 'scaler.pkl'))
-            print("Machine learning models loaded successfully.")
-        except:
-            print("No pre-trained models found. Using rule-based analysis with ML enhancement.")
-            # Initialize for later training
-            self.rf_classifier = RandomForestClassifier(n_estimators=100, random_state=42)
-            self.tfidf_vectorizer = TfidfVectorizer(max_features=100)
-            self.scaler = StandardScaler()
-    
+            from transformers import AutoTokenizer, AutoModel
+            tokenizer = AutoTokenizer.from_pretrained(self.transformer_model_name, local_files_only=True)
+            model = AutoModel.from_pretrained(self.transformer_model_name, local_files_only=True)
+            model.eval()
+            self.tokenizer, self.transformer_model = tokenizer, model
+        except Exception as exc:
+            logger.info('Local text model unavailable; using zero embeddings: %s', exc)
+
     def get_text_embedding(self, text):
-        """
-        Generate embeddings for text using transformer model.
-        
-        Args:
-            text (str): Input text to generate embeddings for
-            
-        Returns:
-            numpy.ndarray: Embedding vector
-        """
-        if not text or len(text.strip()) == 0:
-            # Return zero vector if text is empty
-            return np.zeros(768)
-        
-        if self.tokenizer is None or self.transformer_model is None:
-            try:
-                self.tokenizer = AutoTokenizer.from_pretrained(self.transformer_model_name)
-                self.transformer_model = AutoModel.from_pretrained(self.transformer_model_name)
-            except:
-                print("Warning: Could not load transformer model. Using zero vector.")
+        with self._lock:
+            self._load_transformer()
+            if not text.strip() or self.transformer_model is None:
                 return np.zeros(768)
-        
-        # Tokenize and get model output
-        inputs = self.tokenizer(text, return_tensors="pt", padding=True, truncation=True, max_length=512)
-        with torch.no_grad():
-            outputs = self.transformer_model(**inputs)
-        
-        # Use CLS token embedding (first token) as the sentence embedding
-        embedding = outputs.last_hidden_state[:, 0, :].numpy().flatten()
-        return embedding
-    
+            import torch
+            inputs = self.tokenizer(text, return_tensors="pt", padding=True,
+                                    truncation=True, max_length=512)
+            with torch.no_grad():
+                outputs = self.transformer_model(**inputs)
+            return outputs.last_hidden_state[:, 0, :].detach().cpu().numpy().flatten()
+
     def extract_features(self, user_data):
         """
         Extract and normalize features from user data for ML model.
@@ -141,6 +123,7 @@ class MLDetector:
         Returns:
             dict: Dictionary of extracted features
         """
+        user_data = normalize_user_data(user_data)
         features = {}
         
         # Username features
@@ -162,19 +145,16 @@ class MLDetector:
         bio = user_data.get('bio', '')
 
         try:
-            words = word_tokenize(bio)
+            words = word_tokenize(bio) if word_tokenize else custom_word_tokenize(bio)
         except LookupError:
-            nltk.download("punkt")
-            nltk.download("punkt_tab")
-            words = word_tokenize(bio)
+            words = custom_word_tokenize(bio)
         features['bio_word_count'] = len(words)
         features['bio_avg_word_length'] = np.mean([len(w) for w in words]) if words else 0
 
         try:
-            sentences = sent_tokenize(bio)
+            sentences = sent_tokenize(bio) if sent_tokenize else custom_sent_tokenize(bio)
         except LookupError:
-            nltk.download("punkt")
-            sentences = sent_tokenize(bio)
+            sentences = custom_sent_tokenize(bio)
         features['bio_sentence_count'] = len(sentences)
         
         features['bio_special_char_ratio'] = len(re.findall(r'[^a-zA-Z0-9\s]', bio)) / max(1, len(bio))
@@ -186,7 +166,8 @@ class MLDetector:
         
         # Time and interaction features
         try:
-            features['time_to_fill'] = float(user_data.get('time_to_fill', 0))
+            value = float(user_data.get('time_to_fill', 0))
+            features['time_to_fill'] = value if math.isfinite(value) and value >= 0 else 0
         except:
             features['time_to_fill'] = 0
             
@@ -195,6 +176,8 @@ class MLDetector:
         if typing_pattern:
             try:
                 intervals = [float(i) for i in typing_pattern.split(',')]
+                if not all(math.isfinite(value) and value >= 0 for value in intervals):
+                    raise ValueError('Invalid typing interval')
                 features['typing_pattern_count'] = len(intervals)
                 features['typing_pattern_mean'] = np.mean(intervals) if intervals else 0
                 features['typing_pattern_std'] = np.std(intervals) if len(intervals) > 1 else 0
@@ -215,11 +198,19 @@ class MLDetector:
         
         # Navigation features
         navigation = user_data.get('navigation', '0')
-        features['navigation_count'] = int(navigation) if navigation.isdigit() else 0
+        try:
+            value = float(navigation)
+            features['navigation_count'] = int(value) if math.isfinite(value) and value >= 0 and value.is_integer() else 0
+        except (TypeError, ValueError, OverflowError):
+            features['navigation_count'] = 0
         
         return features
     
     def predict_bot_probability(self, user_data):
+        with self._lock:
+            return self._predict_bot_probability(normalize_user_data(user_data))
+
+    def _predict_bot_probability(self, user_data):
         """
         Predict the probability that the user is a bot using ML models.
         If models are not trained, it will fallback to rule-based methods with ML enhancements.
@@ -235,18 +226,23 @@ class MLDetector:
         features = self.extract_features(user_data)
         
         # Convert features to a format suitable for ML models
-        feature_names = sorted(features.keys())
-        feature_vector = np.array([features[f] for f in feature_names]).reshape(1, -1)
+        feature_names = self.feature_names or sorted(features.keys())
         
         # Check if we have a trained model
         if self.rf_classifier is not None and hasattr(self.rf_classifier, 'classes_'):
             # We have a trained model, use it for prediction
             try:
+                if set(feature_names) != set(features):
+                    raise ValueError('The saved model uses a different feature schema')
+                feature_vector = np.array([features[f] for f in feature_names]).reshape(1, -1)
                 # Scale features
                 scaled_features = self.scaler.transform(feature_vector)
                 
                 # Make prediction
-                bot_probability = self.rf_classifier.predict_proba(scaled_features)[0][1]
+                if self._requires_transformer and self.transformer_model is None:
+                    raise ValueError('The text model used for training is unavailable')
+                bot_index = list(self.rf_classifier.classes_).index(1)
+                bot_probability = float(self.rf_classifier.predict_proba(scaled_features)[0][bot_index])
                 
                 # Get feature importances for evidence
                 importances = self.rf_classifier.feature_importances_
@@ -325,13 +321,13 @@ class MLDetector:
                 evidence.append(f"Typing rhythm shows natural human variation ({features['typing_pattern_std']:.2f}ms)")
         
         # Time to fill analysis
-        if features['time_to_fill'] < 5:
+        if user_data.get('time_to_fill') and features['time_to_fill'] < 5:
             bot_probability += 0.3
             evidence.append(f"Form completed extremely quickly ({features['time_to_fill']:.2f}s), strongly suggesting automation")
-        elif 5 <= features['time_to_fill'] <= 15:
+        elif user_data.get('time_to_fill') and 5 <= features['time_to_fill'] <= 15:
             bot_probability += 0.1
             evidence.append(f"Form completed very quickly ({features['time_to_fill']:.2f}s), potential bot behavior")
-        elif 15 < features['time_to_fill'] <= 180:
+        elif user_data.get('time_to_fill') and 15 < features['time_to_fill'] <= 180:
             bot_probability -= 0.2
             evidence.append(f"Form completion time ({features['time_to_fill']:.2f}s) is within normal human range")
         
@@ -342,44 +338,38 @@ class MLDetector:
         return bot_probability, evidence
     
     def train(self, data, labels):
-        """
-        Train the ML models using labeled data.
-        
-        Args:
-            data (list): List of user_data dictionaries
-            labels (list): List of binary labels (1 for bot, 0 for human)
-            
-        Returns:
-            float: Training accuracy
-        """
-        print(f"Training ML models with {len(data)} samples...")
-        
-        # Extract features from all samples
-        X = []
-        for user_data in data:
-            features = self.extract_features(user_data)
-            feature_vector = [features[f] for f in sorted(features.keys())]
-            X.append(feature_vector)
-        
-        X = np.array(X)
-        y = np.array(labels)
-        
-        # Scale features
-        self.scaler.fit(X)
-        X_scaled = self.scaler.transform(X)
-        
-        # Train random forest classifier
-        self.rf_classifier.fit(X_scaled, y)
-        
-        # Save models
-        joblib.dump(self.rf_classifier, os.path.join(self.models_path, 'rf_classifier.pkl'))
-        joblib.dump(self.tfidf_vectorizer, os.path.join(self.models_path, 'tfidf_vectorizer.pkl'))
-        joblib.dump(self.scaler, os.path.join(self.models_path, 'scaler.pkl'))
-        
-        # Return training accuracy
-        accuracy = self.rf_classifier.score(X_scaled, y)
-        print(f"Training completed with accuracy: {accuracy:.2%}")
-        return accuracy
+        """Validate and fit a candidate; publish it only after a successful save.
 
-# Initialize global detector instance
-ml_detector = MLDetector() 
+        The returned accuracy is measured on the training set, not held-out data.
+        """
+        data, labels = validate_training_data(data, labels)
+        with self._lock:
+            self._load_transformer()
+            features = [self.extract_features(sample) for sample in data]
+            names = sorted(features[0])
+            X = np.asarray([[sample[name] for name in names] for sample in features])
+            scaler = StandardScaler()
+            X_scaled = scaler.fit_transform(X)
+            classifier = RandomForestClassifier(n_estimators=100, random_state=42)
+            classifier.fit(X_scaled, labels)
+            accuracy = float(classifier.score(X_scaled, labels))
+            bundle = {'classifier': classifier, 'scaler': scaler,
+                      'feature_names': names,
+                      'uses_transformer': self.transformer_model is not None}
+            Path(self.models_path).mkdir(parents=True, exist_ok=True)
+            fd, temporary = tempfile.mkstemp(dir=self.models_path, suffix='.joblib')
+            os.close(fd)
+            try:
+                joblib.dump(bundle, temporary)
+                os.replace(temporary, Path(self.models_path) / 'detector.joblib')
+            finally:
+                if os.path.exists(temporary):
+                    os.unlink(temporary)
+            self.rf_classifier, self.scaler = classifier, scaler
+            self.feature_names = names
+            self._requires_transformer = bundle['uses_transformer']
+            return accuracy
+
+
+# The web and training modules share this instance so uploaded training is live.
+ml_detector = MLDetector()

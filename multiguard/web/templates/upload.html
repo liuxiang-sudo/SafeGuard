@@ -84,17 +84,10 @@
                     <div class="code-example">
 <pre>{
   "samples": [
-    {
-      "username": "example_user123",
-      "email": "user@example.com",
-      "bio": "This is a sample bio text for a human user.",
-      "time_to_fill": "45.2",
-      "typing_pattern": "340,250,180,420,300",
-      "navigation": "2"
-    },
-    // 更多样本...
+    {"username": "sample_user", "email": "user@example.com", "bio": "分享生活", "time_to_fill": "45"},
+    {"username": "bot_99999", "email": "bot@example.com", "bio": "自动更新", "time_to_fill": "2"}
   ],
-  "labels": [0, 1, 0, ...]  // 0表示人类，1表示机器人
+  "labels": [0, 1]
 }</pre>
                     </div>
                 </div>
@@ -146,5 +139,6 @@
             <p>&copy; 2025 人机检测器 | Human-Bot Detector</p>
         </footer>
     </div>
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 </body>
 </html> 

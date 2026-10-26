@@ -1,35 +1,14 @@
-import os
-import sys
-import json
-import random
-import numpy as np
-import pandas as pd
+"""Shared data loading and training entry points for CLI and Web uploads."""
 import argparse
-from multiguard.detection.ml_detector import MLDetector, custom_word_tokenize, custom_sent_tokenize
-from multiguard.paths import TRAINING_SAMPLES_DIR, PROCESSED_DIR, ensure_runtime_dirs
-import nltk
+import csv
+import json
+import os
+from pathlib import Path
+import random
 
-# 确保NLTK资源可用
-def setup_nltk_resources():
-    """确保必要的NLTK资源可用"""
-    try:
-        # 下载核心NLTK资源
-        nltk.download('punkt', quiet=True)
-        nltk.download('wordnet', quiet=True)
-        
-        # 测试自定义分词函数
-        sample_text = "This is a test sentence. This is another one."
-        words = custom_word_tokenize(sample_text)
-        sentences = custom_sent_tokenize(sample_text)
-        
-        if words and sentences:
-            print("分词系统测试成功!")
-        else:
-            print("警告: 分词测试未能返回预期结果。")
-            
-    except Exception as e:
-        print(f"警告: NLTK资源初始化失败: {e}")
-        print("程序将使用自定义分词方法继续运行")
+from multiguard.data.validation import validate_training_data
+from multiguard.detection.ml_detector import ml_detector
+from multiguard.paths import TRAINING_SAMPLES_DIR, PROCESSED_DIR, ensure_runtime_dirs
 
 def generate_synthetic_data(num_samples=1000):
     """
@@ -41,6 +20,8 @@ def generate_synthetic_data(num_samples=1000):
     Returns:
         tuple: (data, labels) 数据和标签列表
     """
+    if not isinstance(num_samples, int) or num_samples < 2:
+        raise ValueError('合成样本数量必须至少为 2')
     print(f"生成 {num_samples} 个合成样本...")
     
     data = []
@@ -165,72 +146,38 @@ def generate_synthetic_data(num_samples=1000):
     return list(data), list(labels)
 
 def load_data_from_file(filepath):
+    """Read upload JSON, legacy record JSON, or labeled CSV consistently.
+
+    Invalid data raises ValueError; callers must not silently train on other data.
     """
-    Load labeled data from a JSON or CSV file.
-    
-    Expected formats:
-    
-    JSON:
-    {
-        "samples": [
-            {
-                "username": "...",
-                "email": "...",
-                ...
-            },
-            ...
-        ],
-        "labels": [0, 1, 0, ...] # 0 for human, 1 for bot
-    }
-    
-    CSV:
-    username,email,bio,time_to_fill,typing_pattern,navigation,label
-    user123,user@example.com,bio text,42.5,pattern,navigation,0
-    
-    Args:
-        filepath (str): Path to the data file
-        
-    Returns:
-        list: List of user_data dictionaries
-        list: Corresponding labels
-    """
-    file_ext = filepath.split('.')[-1].lower()
-    
-    try:
-        if file_ext == 'json':
-            with open(filepath, 'r') as f:
-                dataset = json.load(f)
-            
-            # 处理两种可能的JSON格式
-            if 'samples' in dataset and 'labels' in dataset:
-                return dataset['samples'], dataset['labels']
-            elif 'data' in dataset and 'labels' in dataset:
-                return dataset['data'], dataset['labels']
-            else:
-                raise ValueError("JSON文件格式不正确，需要包含'samples'/'data'和'labels'字段")
-                
-        elif file_ext == 'csv':
-            df = pd.read_csv(filepath)
-            
-            # 检查是否包含必要的列
-            required_cols = ['username', 'email', 'label']
-            if not all(col in df.columns for col in required_cols):
-                raise ValueError(f"CSV文件必须包含以下列: {', '.join(required_cols)}")
-            
-            # 提取标签
-            labels = df['label'].tolist()
-            
-            # 提取数据
-            df = df.drop('label', axis=1)
-            data = df.to_dict('records')
-            
-            return data, labels
+    path = Path(filepath)
+    if path.suffix.lower() == '.json':
+        with path.open(encoding='utf-8-sig') as stream:
+            dataset = json.load(stream)
+        if isinstance(dataset, dict):
+            samples = dataset.get('samples', dataset.get('data'))
+            labels = dataset.get('labels')
+        elif isinstance(dataset, list):
+            if not all(isinstance(item, dict) and 'data' in item and 'is_bot' in item
+                       for item in dataset):
+                raise ValueError('记录列表必须包含 data 和 is_bot 字段')
+            samples = [item['data'] for item in dataset]
+            labels = [item['is_bot'] for item in dataset]
         else:
-            raise ValueError(f"不支持的文件格式: {file_ext}")
-            
-    except Exception as e:
-        print(f"从 {filepath} 加载数据时出错: {str(e)}")
-        return None, None
+            raise ValueError('JSON 必须为样本对象或记录列表')
+    elif path.suffix.lower() == '.csv':
+        with path.open(encoding='utf-8-sig', newline='') as stream:
+            reader = csv.DictReader(stream)
+            if not {'username', 'email', 'label'}.issubset(reader.fieldnames or []):
+                raise ValueError('CSV 必须包含 username、email、label 列')
+            samples, labels = [], []
+            for row in reader:
+                labels.append(row.pop('label'))
+                samples.append(row)
+    else:
+        raise ValueError('仅支持 JSON 或 CSV 数据集')
+    return validate_training_data(samples, labels, require_both_classes=False)
+
 
 def combine_with_default_dataset(user_data, user_labels, default_size=500):
     """
@@ -254,7 +201,7 @@ def combine_with_default_dataset(user_data, user_labels, default_size=500):
     
     return combined_data, combined_labels
 
-def train_model_from_file(filepath, mix_with_default=False, default_size=500):
+def train_model_from_file(filepath, mix_with_default=False, default_size=500, detector=None):
     """
     Train model from a user uploaded file
     
@@ -277,8 +224,8 @@ def train_model_from_file(filepath, mix_with_default=False, default_size=500):
         data, labels = combine_with_default_dataset(data, labels, default_size)
     
     # 训练模型
-    ml_detector = MLDetector()
-    accuracy = ml_detector.train(data, labels)
+    active_detector = detector if detector is not None else ml_detector
+    accuracy = active_detector.train(data, labels)
     
     print(f"模型训练完成，使用了 {len(data)} 个样本。")
     print(f"训练准确率: {accuracy:.2%}")
@@ -288,7 +235,7 @@ def train_model_from_file(filepath, mix_with_default=False, default_size=500):
     os.makedirs(sample_dir, exist_ok=True)
     sample_filename = os.path.join(sample_dir, f'sample_{os.path.basename(filepath)}')
     
-    with open(sample_filename, 'w') as f:
+    with open(sample_filename, 'w', encoding='utf-8') as f:
         json.dump({
             'samples': data[:5],
             'labels': labels[:5]
@@ -299,58 +246,27 @@ def train_model_from_file(filepath, mix_with_default=False, default_size=500):
     return accuracy
 
 def main():
-    ensure_runtime_dirs()
-    # 首先设置NLTK资源
-    print("设置NLTK资源...")
-    setup_nltk_resources()
-    
-    parser = argparse.ArgumentParser(description='训练机器人检测ML模型')
-    parser.add_argument('--data', type=str, help='标记数据文件的路径（JSON或CSV格式）')
-    parser.add_argument('--synth', type=int, default=1000, help='如果没有提供数据，生成合成数据的数量')
+    parser = argparse.ArgumentParser(description='训练机器人检测 ML 模型')
+    parser.add_argument('--data', type=str, help='标记数据文件的路径（JSON 或 CSV）')
+    parser.add_argument('--synth', type=int, default=1000, help='未提供数据时的合成样本数量')
     args = parser.parse_args()
-    
-    # 初始化ML检测器
-    ml_detector = MLDetector()
-    
-    if args.data:
-        # 使用提供的数据集
-        if os.path.exists(args.data):
-            try:
-                with open(args.data, 'r', encoding='utf-8') as f:
-                    dataset = json.load(f)
-                data = [item['data'] for item in dataset]
-                labels = [1 if item['is_bot'] else 0 for item in dataset]
-                print(f"从 {args.data} 加载了 {len(data)} 个样本")
-            except Exception as e:
-                print(f"加载数据时出错: {str(e)}")
-                print("生成合成数据...")
-                data, labels = generate_synthetic_data(args.synth)
+    try:
+        if args.data:
+            data, labels = load_data_from_file(args.data)
         else:
-            print(f"找不到数据文件 {args.data}")
-            print("生成合成数据...")
             data, labels = generate_synthetic_data(args.synth)
-    else:
-        # 使用合成数据
-        print(f"没有提供数据，生成 {args.synth} 个合成样本...")
-        data, labels = generate_synthetic_data(args.synth)
-    
-    print(f"使用 {len(data)} 个样本训练ML模型...")
-    
-    # 训练模型
+        data, labels = validate_training_data(data, labels)
+    except (OSError, ValueError) as exc:
+        parser.error(str(exc))
+    ensure_runtime_dirs()
     accuracy = ml_detector.train(data, labels)
-    
     print(f"模型训练完成，使用了 {len(data)} 个样本。")
-    print(f"交叉验证准确率: {accuracy:.2%}")
-    
-    # 保存一个简单的真实样本数据集供将来使用
-    with open(PROCESSED_DIR / 'real_dataset.json', 'w', encoding='utf-8') as f:
-        dataset = [
-            {'data': data[i], 'is_bot': bool(labels[i])} 
-            for i in range(len(data))
-        ]
-        json.dump(dataset, f, indent=2, ensure_ascii=False)
-    
-    print(f"已处理 {len(data)} 个样本并保存到 data/processed/real_dataset.json")
+    print(f"训练集准确率: {accuracy:.2%}（不代表独立测试集表现）")
+    output = PROCESSED_DIR / 'real_dataset.json'
+    with output.open('w', encoding='utf-8') as stream:
+        json.dump({'samples': data, 'labels': labels}, stream, indent=2, ensure_ascii=False)
+    print(f"训练数据已保存到 {output}")
 
-if __name__ == "__main__":
-    main() 
+
+if __name__ == '__main__':
+    main()
