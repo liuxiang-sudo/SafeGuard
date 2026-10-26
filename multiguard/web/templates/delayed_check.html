@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>隔天检测 - 人机检测器</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>隔天检测 <span class="subtitle">Delayed Bot Check</span></h1>
+            <div class="nav-container">
+                <a href="{{ url_for('index') }}" class="nav-link">主页</a>
+                <a href="{{ url_for('register') }}" class="nav-link">注册检测</a>
+                <a href="{{ url_for('delayed_check') }}" class="nav-link active">隔天检测</a>
+                <a href="{{ url_for('popup_check') }}" class="nav-link">弹窗检测</a>
+            </div>
+        </header>
+        <main>
+            <div class="form-container">
+                {% include 'form_common.html' %}
+            </div>
+        </main>
+        <footer>
+            <p>&copy; 2025 人机检测器 | Human-Bot Detector</p>
+        </footer>
+    </div>
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html> 

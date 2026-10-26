@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>分析结果 - 人机检测器</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        .nav-container {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        .nav-link {
+            margin: 0 15px;
+            padding: 8px 16px;
+            background-color: var(--primary-light);
+            color: var(--primary-dark);
+            text-decoration: none;
+            border-radius: var(--border-radius);
+            transition: all 0.3s;
+        }
+        .nav-link:hover {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        .nav-link.active {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        .flash-messages {
+            margin-bottom: 20px;
+        }
+        .flash-message {
+            padding: 10px 15px;
+            margin-bottom: 10px;
+            border-radius: var(--border-radius);
+            text-align: center;
+        }
+        .flash-message.success {
+            background-color: rgba(76, 175, 80, 0.1);
+            border: 1px solid var(--success-color);
+            color: var(--success-color);
+        }
+        .flash-message.error {
+            background-color: rgba(244, 67, 54, 0.1);
+            border: 1px solid var(--danger-color);
+            color: var(--danger-color);
+        }
+    </style>
+</head>
+<body>
+    <div class="container result-container">
+        <header>
+            <h1>分析结果 <span class="subtitle">Analysis Result</span></h1>
+            <a href="/" class="back-link">← 返回首页</a>
+            
+            <div class="nav-container">
+                <a href="{{ url_for('index') }}" class="nav-link">主页</a>
+                <a href="{{ url_for('upload_dataset') }}" class="nav-link">上传数据集</a>
+            </div>
+            
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash-message {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            {% endwith %}
+        </header>
+        
+        <main>
+            <div class="result-summary">
+                <div class="result-card {% if result.classification == 'Human' %}human{% elif result.classification == 'Bot' %}bot{% else %}uncertain{% endif %}">
+                    <h2>检测结果: <span class="result-text">{{ result.classification }}</span></h2>
+                    
+                    <div class="probability-container">
+                        <div class="probability-wrapper">
+                            <div class="probability-meter">
+                                <div class="meter-fill human" style="width: {{ result.probability_human * 100 }}%;"></div>
+                                <div class="meter-fill bot" style="width: {{ result.probability_bot * 100 }}%;"></div>
+                            </div>
+                            <div class="meter-labels">
+                                <span class="human-label">人类 {{ result.probability_human * 100 }}%</span>
+                                <span class="bot-label">机器人 {{ result.probability_bot * 100 }}%</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="ai-badge">
+                        <span class="ai-icon">🧠</span> 由机器学习和Transformer模型提供分析支持
+                    </div>
+                </div>
+            </div>
+            
+            <div class="evidence-container">
+                <h2>分析依据 (Analysis Evidence)</h2>
+                <div class="evidence-list">
+                    {% for item in result.evidence %}
+                        <div class="evidence-item {% if 'Machine learning model predicts' in item or 'Feature' in item %}ml-evidence{% endif %}">
+                            <span class="evidence-icon">{% if 'Feature' in item %}🔬{% elif 'Machine learning' in item %}🤖{% else %}🔍{% endif %}</span>
+                            <p>{{ item }}</p>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <div class="explanation-container">
+                <h2>结果解读 (Interpretation)</h2>
+                <div class="explanation-content">
+                    {% if result.classification == 'Human' %}
+                        <p>根据我们的分析，您很有可能是一个真实的人类用户。您的行为模式、输入内容以及互动方式都符合人类用户的典型特征。我们的机器学习模型对您的各种行为特征进行了综合分析，得出了这一结论。</p>
+                    {% elif result.classification == 'Bot' %}
+                        <p>根据我们的分析，您的行为模式更接近于自动化程序或机器人。这可能是由于您的输入速度异常、使用了生成式的内容或者其他典型的自动化特征。我们的机器学习模型分析了超过780个特征点，并识别出了多项与机器人行为相符的模式。</p>
+                    {% else %}
+                        <p>我们的系统无法确定您是人类还是机器人。您的行为模式包含了人类和自动化程序的特征，或者提供的信息不足以做出明确判断。我们的机器学习模型在分析您的行为特征后，未能得出高置信度的结论。</p>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="features-analysis">
+                <h2>特征分析 (Feature Analysis)</h2>
+                <div class="features-grid">
+                    <div class="feature-category text-features">
+                        <h3>文本分析</h3>
+                        <p>我们使用Transformer深度学习模型分析了您的输入文本，对其语义、结构和自然度进行了评估。</p>
+                    </div>
+                    
+                    <div class="feature-category behavior-features">
+                        <h3>行为特征</h3>
+                        <p>系统记录并分析了您的表单填写时间、打字节奏和页面浏览行为等交互特征。</p>
+                    </div>
+                    
+                    <div class="feature-category identity-features">
+                        <h3>身份特征</h3>
+                        <p>我们对您的用户名和电子邮箱进行了模式分析，以识别可能的自动生成特征。</p>
+                    </div>
+                    
+                    <div class="feature-category ml-details">
+                        <h3>机器学习模型</h3>
+                        <p>随机森林分类器对上述特征进行了综合分析，识别出最具影响力的特征，并给出最终判断。</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="action-container">
+                <a href="/" class="action-button">再次检测</a>
+                <a href="{{ url_for('upload_dataset') }}" class="action-button" style="background-color: var(--ml-color); margin-left: 15px;">上传数据集</a>
+            </div>
+        </main>
+        
+        <footer>
+            <p>&copy; 2025 人机检测器 | Human-Bot Detector</p>
+        </footer>
+    </div>
+</body>
+</html> 

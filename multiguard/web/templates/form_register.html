@@ -1,0 +1,53 @@
+<form id="detection-form" action="/analyze" method="post">
+    <!-- 平台选择 -->
+    <div class="form-group">
+        <h2 class="platform-selection-title">选择平台 (Select Platform)</h2>
+        <div class="platform-selector">
+            <div class="platform-option active" data-platform="weibo">
+                <img src="{{ url_for('static', filename='img/icons/weibo.svg') }}" alt="微博">
+                <div class="platform-option-name">微博</div>
+            </div>
+            <div class="platform-option" data-platform="douyin">
+                <img src="{{ url_for('static', filename='img/icons/douyin.svg') }}" alt="抖音">
+                <div class="platform-option-name">抖音</div>
+            </div>
+            <div class="platform-option" data-platform="tieba">
+                <img src="{{ url_for('static', filename='img/icons/tieba.svg') }}" alt="贴吧">
+                <div class="platform-option-name">贴吧</div>
+            </div>
+        </div>
+        <input type="hidden" id="platform" name="platform" value="weibo">
+    </div>
+    <!-- 基础字段 -->
+    <div class="form-group">
+        <label for="username">用户名 (Username)</label>
+        <input type="text" id="username" name="username" placeholder="请输入用户名..." required>
+    </div>
+    <div class="form-group">
+        <label for="email">电子邮箱 (Email)</label>
+        <input type="email" id="email" name="email" placeholder="请输入电子邮箱..." required>
+    </div>
+    <div class="form-group">
+        <label for="bio">自我介绍 (Bio)</label>
+        <textarea id="bio" name="bio" placeholder="请简单介绍一下自己..." rows="3" required></textarea>
+    </div>
+    <div class="form-group optional-field">
+        <label for="register_date">注册日期 (Registration Date)</label>
+        <input type="date" id="register_date" name="register_date">
+    </div>
+    <div class="form-group optional-field">
+        <label for="ip_address">IP地址 (IP Address)</label>
+        <input type="text" id="ip_address" name="ip_address" placeholder="例如: 192.168.1.1">
+    </div>
+    <!-- 行为数据 - 隐藏字段 -->
+    <input type="hidden" id="time_to_fill" name="time_to_fill" value="0">
+    <input type="hidden" id="typing_pattern" name="typing_pattern" value="">
+    <input type="hidden" id="navigation" name="navigation" value="0">
+    <input type="hidden" id="screen_size" name="screen_size" value="">
+    <input type="hidden" id="user_agent" name="user_agent" value="">
+    <input type="hidden" id="referrer" name="referrer" value="">
+    <input type="hidden" id="click_pattern" name="click_pattern" value="">
+    <div class="submit-container">
+        <button type="submit" class="submit-btn">开始分析</button>
+    </div>
+</form> 

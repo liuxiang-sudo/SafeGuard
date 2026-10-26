@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>上传数据集 - 人机检测器</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        .nav-container {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        .nav-link {
+            margin: 0 15px;
+            padding: 8px 16px;
+            background-color: var(--primary-light);
+            color: var(--primary-dark);
+            text-decoration: none;
+            border-radius: var(--border-radius);
+            transition: all 0.3s;
+        }
+        .nav-link:hover {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        .nav-link.active {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        .flash-messages {
+            margin-bottom: 20px;
+        }
+        .flash-message {
+            padding: 10px 15px;
+            margin-bottom: 10px;
+            border-radius: var(--border-radius);
+            text-align: center;
+        }
+        .flash-message.success {
+            background-color: rgba(76, 175, 80, 0.1);
+            border: 1px solid var(--success-color);
+            color: var(--success-color);
+        }
+        .flash-message.error {
+            background-color: rgba(244, 67, 54, 0.1);
+            border: 1px solid var(--danger-color);
+            color: var(--danger-color);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>上传数据集 <span class="subtitle">Upload Dataset</span></h1>
+            <a href="/" class="back-link">← 返回首页</a>
+            
+            <div class="nav-container">
+                <a href="{{ url_for('index') }}" class="nav-link">主页</a>
+                <a href="{{ url_for('upload_dataset') }}" class="nav-link active">上传数据集</a>
+            </div>
+            
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash-message {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            {% endwith %}
+        </header>
+        
+        <main class="upload-main">
+            <div class="instruction-container">
+                <h2>如何提供训练数据</h2>
+                <p>您可以通过上传标记好的数据集来帮助我们改进人机检测算法。您的数据将用于训练机器学习模型，使其能够更准确地区分人类和机器人。</p>
+                
+                <div class="format-box">
+                    <h3>数据格式要求</h3>
+                    <p>我们接受 JSON 和 CSV 格式的数据集。每个样本应包含以下字段：</p>
+                    
+                    <div class="code-example">
+<pre>{
+  "samples": [
+    {
+      "username": "example_user123",
+      "email": "user@example.com",
+      "bio": "This is a sample bio text for a human user.",
+      "time_to_fill": "45.2",
+      "typing_pattern": "340,250,180,420,300",
+      "navigation": "2"
+    },
+    // 更多样本...
+  ],
+  "labels": [0, 1, 0, ...]  // 0表示人类，1表示机器人
+}</pre>
+                    </div>
+                </div>
+                
+                <div class="tips-box">
+                    <h3>提示</h3>
+                    <ul>
+                        <li>确保您的数据集包含足够多的样本（至少50个）</li>
+                        <li>保持人类和机器人样本的平衡比例</li>
+                        <li>您可以选择将您的数据与我们的默认数据集混合，以提高模型性能</li>
+                        <li>如果您不确定如何创建数据集，可以下载我们的模板</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="upload-form-container">
+                <h2>上传您的数据集</h2>
+                
+                <form class="upload-form" action="{{ url_for('upload_dataset') }}" method="post" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <label for="dataset_file">选择数据集文件 (JSON/CSV)</label>
+                        <input type="file" id="dataset_file" name="dataset_file" required accept=".json,.csv">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="dataset_name">数据集名称 (可选)</label>
+                        <input type="text" id="dataset_name" name="dataset_name" placeholder="例如: 我的电商网站数据">
+                    </div>
+                    
+                    <div class="form-group checkbox-group">
+                        <input type="checkbox" id="mix_with_default" name="mix_with_default" checked>
+                        <label for="mix_with_default">与默认数据集混合 (推荐)</label>
+                    </div>
+                    
+                    <div class="submit-container">
+                        <button type="submit" class="submit-btn">上传并训练模型</button>
+                    </div>
+                </form>
+                
+                <div class="alternative-tools">
+                    <h3>其他工具</h3>
+                    <a href="#" class="tool-link" id="generate-sample-data">生成样本数据</a>
+                    <a href="{{ url_for('download_template', platform='general') }}" class="tool-link">下载数据模板</a>
+                </div>
+            </div>
+        </main>
+        
+        <footer>
+            <p>&copy; 2025 人机检测器 | Human-Bot Detector</p>
+        </footer>
+    </div>
+</body>
+</html> 

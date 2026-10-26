@@ -1,0 +1,136 @@
+<form id="detection-form" action="/analyze" method="post">
+    <!-- 平台选择 -->
+    <div class="form-group">
+        <h2 class="platform-selection-title">选择平台 (Select Platform)</h2>
+        <div class="platform-selector">
+            <div class="platform-option active" data-platform="weibo">
+                <img src="{{ url_for('static', filename='img/icons/weibo.svg') }}" alt="微博">
+                <div class="platform-option-name">微博</div>
+            </div>
+            <div class="platform-option" data-platform="douyin">
+                <img src="{{ url_for('static', filename='img/icons/douyin.svg') }}" alt="抖音">
+                <div class="platform-option-name">抖音</div>
+            </div>
+            <div class="platform-option" data-platform="tieba">
+                <img src="{{ url_for('static', filename='img/icons/tieba.svg') }}" alt="贴吧">
+                <div class="platform-option-name">贴吧</div>
+            </div>
+        </div>
+        <input type="hidden" id="platform" name="platform" value="weibo">
+    </div>
+    <!-- 通用字段 - 始终显示 -->
+    <div class="form-group">
+        <label for="username">用户名 (Username)</label>
+        <input type="text" id="username" name="username" placeholder="请输入用户名..." required>
+    </div>
+    <div class="form-group">
+        <label for="email">电子邮箱 (Email)</label>
+        <input type="email" id="email" name="email" placeholder="请输入电子邮箱..." required>
+    </div>
+    <div class="form-group">
+        <label for="bio">自我介绍 (Bio)</label>
+        <textarea id="bio" name="bio" placeholder="请简单介绍一下自己..." rows="3" required></textarea>
+    </div>
+    <div class="form-group optional-field">
+        <label for="register_date">注册日期 (Registration Date)</label>
+        <input type="date" id="register_date" name="register_date">
+    </div>
+    <div class="form-group optional-field">
+        <label for="ip_address">IP地址 (IP Address)</label>
+        <input type="text" id="ip_address" name="ip_address" placeholder="例如: 192.168.1.1">
+    </div>
+    <!-- 微博特定字段 -->
+    <div class="platform-fields" id="weibo-fields">
+        <h3>微博特定信息</h3>
+        <div class="form-group">
+            <label for="weibo_followers">粉丝数量 (Followers)</label>
+            <input type="number" id="weibo_followers" name="weibo_followers" min="0">
+        </div>
+        <div class="form-group">
+            <label for="weibo_following">关注数量 (Following)</label>
+            <input type="number" id="weibo_following" name="weibo_following" min="0">
+        </div>
+        <div class="form-group">
+            <label for="weibo_posts">发帖数量 (Posts)</label>
+            <input type="number" id="weibo_posts" name="weibo_posts" min="0">
+        </div>
+        <div class="form-group">
+            <label for="weibo_verified">是否认证 (Verified)</label>
+            <select id="weibo_verified" name="weibo_verified">
+                <option value="none">未认证</option>
+                <option value="personal">个人认证</option>
+                <option value="business">企业认证</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="weibo_last_posts">最近5条微博内容 (Last 5 Posts)</label>
+            <textarea id="weibo_last_posts" name="weibo_last_posts" rows="3" placeholder="每行一条，最多5条"></textarea>
+        </div>
+    </div>
+    <!-- 抖音特定字段 -->
+    <div class="platform-fields" id="douyin-fields">
+        <h3>抖音特定信息</h3>
+        <div class="form-group">
+            <label for="douyin_followers">粉丝数量 (Followers)</label>
+            <input type="number" id="douyin_followers" name="douyin_followers" min="0">
+        </div>
+        <div class="form-group">
+            <label for="douyin_following">关注数量 (Following)</label>
+            <input type="number" id="douyin_following" name="douyin_following" min="0">
+        </div>
+        <div class="form-group">
+            <label for="douyin_likes">获赞数量 (Likes)</label>
+            <input type="number" id="douyin_likes" name="douyin_likes" min="0">
+        </div>
+        <div class="form-group">
+            <label for="douyin_videos">视频数量 (Videos)</label>
+            <input type="number" id="douyin_videos" name="douyin_videos" min="0">
+        </div>
+        <div class="form-group">
+            <label for="douyin_verified">是否认证 (Verified)</label>
+            <select id="douyin_verified" name="douyin_verified">
+                <option value="false">未认证</option>
+                <option value="true">已认证</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="douyin_video_titles">最近视频标题 (Recent Video Titles)</label>
+            <textarea id="douyin_video_titles" name="douyin_video_titles" rows="3" placeholder="每行一个标题，最多5个"></textarea>
+        </div>
+    </div>
+    <!-- 贴吧特定字段 -->
+    <div class="platform-fields" id="tieba-fields">
+        <h3>贴吧特定信息</h3>
+        <div class="form-group">
+            <label for="tieba_level">等级 (Level)</label>
+            <input type="number" id="tieba_level" name="tieba_level" min="1" max="20">
+        </div>
+        <div class="form-group">
+            <label for="tieba_age">吧龄 (Days)</label>
+            <input type="number" id="tieba_age" name="tieba_age" min="0">
+        </div>
+        <div class="form-group">
+            <label for="tieba_posts">发帖数量 (Posts)</label>
+            <input type="number" id="tieba_posts" name="tieba_posts" min="0">
+        </div>
+        <div class="form-group">
+            <label for="tieba_followed">关注的贴吧数 (Followed Forums)</label>
+            <input type="number" id="tieba_followed" name="tieba_followed" min="0">
+        </div>
+        <div class="form-group">
+            <label for="tieba_last_posts">最近发帖内容 (Recent Posts)</label>
+            <textarea id="tieba_last_posts" name="tieba_last_posts" rows="3" placeholder="每行一个帖子标题或内容，最多5个"></textarea>
+        </div>
+    </div>
+    <!-- 行为数据 - 隐藏字段 -->
+    <input type="hidden" id="time_to_fill" name="time_to_fill" value="0">
+    <input type="hidden" id="typing_pattern" name="typing_pattern" value="">
+    <input type="hidden" id="navigation" name="navigation" value="0">
+    <input type="hidden" id="screen_size" name="screen_size" value="">
+    <input type="hidden" id="user_agent" name="user_agent" value="">
+    <input type="hidden" id="referrer" name="referrer" value="">
+    <input type="hidden" id="click_pattern" name="click_pattern" value="">
+    <div class="submit-container">
+        <button type="submit" class="submit-btn">开始分析</button>
+    </div>
+</form> 

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>深度检测 - 人机检测器</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>深度检测 <span class="subtitle">Deep Bot Check</span></h1>
+            <div class="nav-container">
+                <a href="{{ url_for('index') }}" class="nav-link">主页</a>
+                <span class="nav-divider">|</span>
+                <a href="{{ url_for('register') }}" class="nav-link">浅层检测</a>
+                <span class="nav-divider">|</span>
+                <a href="{{ url_for('deep_check') }}" class="nav-link active">深度检测</a>
+            </div>
+        </header>
+        <main>
+            <div class="deep-check-tabs">
+                <button class="tab-btn active" data-tab="popup">弹窗检测</button>
+                <button class="tab-btn" data-tab="delayed">隔天检测</button>
+            </div>
+            <div class="tab-content" id="popup">
+                <div class="form-container">
+                    {% include 'form_common.html' %}
+                </div>
+            </div>
+            <div class="tab-content" id="delayed" style="display:none;">
+                <div class="form-container">
+                    {% include 'form_common.html' %}
+                </div>
+            </div>
+        </main>
+        <footer>
+            <p>&copy; 2025 人机检测器 | Human-Bot Detector</p>
+        </footer>
+    </div>
+    <script>
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.onclick = function() {
+          document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          document.querySelectorAll('.tab-content').forEach(tc => tc.style.display = 'none');
+          document.getElementById(btn.dataset.tab).style.display = '';
+        }
+      });
+    </script>
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html> 

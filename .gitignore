@@ -1,0 +1,37 @@
+# Python environments and caches
+/local/
+.venv/
+venv/
+**/hbdenv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+# Editors and operating systems
+.idea/
+.vscode/
+__MACOSX/
+.DS_Store
+._*
+Thumbs.db
+# Local configuration
+.env
+.env.*
+!.env.example
+*.log
+# Downloaded and trained models
+/models/*
+!/models/README.md
+# Runtime datasets, including converted and uploaded data
+/data/datasets/*
+!/data/datasets/README.md
+/data/processed/*
+!/data/processed/README.md
+/data/training_samples/*
+!/data/training_samples/README.md
+/data/raw/
+# Local dataset examples and templates
+/examples/data/*.json
+# Generated reports and old exported documentation
+/reports/*
+!/reports/README.md
+/docs/legacy/
